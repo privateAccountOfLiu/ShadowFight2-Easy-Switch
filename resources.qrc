@@ -1,0 +1,9 @@
+<!DOCTYPE RCC>
+<RCC>
+  <qresource prefix="icons">
+      <file alias="icon">ui/icon/icon.png</file>
+      <file alias="file">ui/icon/file.svg</file>
+      <file alias="setting">ui/icon/setting.svg</file>
+      <file alias="help">ui/icon/exclamation-circle.svg</file>
+  </qresource>
+</RCC>

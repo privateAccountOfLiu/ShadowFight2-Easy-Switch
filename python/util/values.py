@@ -1,9 +1,9 @@
 from python.util.matrix import Matrix, Vector
 
-gap_msg_0 = '<Scene>\n<Nodes>\n'
-gap_msg_1 = '</Nodes>\n<Edges>\n'
-gap_msg_2 = '</Edges>\n<Figures>\n'
-gap_msg_3 = '</Figures>\n</Scene>\n'
+gap_msg_0 = '<Scene>\n  <Nodes>\n'
+gap_msg_1 = '  </Nodes>\n  <Edges>\n'
+gap_msg_2 = '  </Edges>\n  <Figures>\n'
+gap_msg_3 = '  </Figures>\n</Scene>\n'
 
 error_mes_0 = 'something_wrong:{}-{}'
 error_mes_1 = 'the iter length must >= 3 but length %d'
