@@ -2,8 +2,8 @@ import tempfile
 
 import pyvista as pv
 import vtk
-from PyQt6.QtCore import QThread, pyqtSignal
-from PyQt6.QtWidgets import (QVBoxLayout, QWidget)
+from PySide6.QtCore import QThread, Signal
+from PySide6.QtWidgets import (QVBoxLayout, QWidget)
 from pyvistaqt import QtInteractor
 
 from python.core.core_functions import *
@@ -65,7 +65,7 @@ class ObjModelViewer(QWidget):
         try:
             super().showEvent(event)
             if not hasattr(self, 'plotter') or self.plotter is None:
-                self.plotter = QtInteractor(parent=self.parent(), auto_update=True)
+                self.plotter = QtInteractor(auto_update=True)
                 self.layout().addWidget(self.plotter)
             self.mesh_show()
             self.plotter.render()
@@ -74,7 +74,7 @@ class ObjModelViewer(QWidget):
 
 
 class WorkerThread(QThread):
-    finished = pyqtSignal()
+    finished = Signal()
 
     def __init__(self, source_dir, target_dir, target_fun):
         super().__init__()
@@ -85,4 +85,4 @@ class WorkerThread(QThread):
     # noinspection PyUnresolvedReferences
     def run(self):
         self.target_fun()
-        self.finished.emit()
+        # self.finished.emit()

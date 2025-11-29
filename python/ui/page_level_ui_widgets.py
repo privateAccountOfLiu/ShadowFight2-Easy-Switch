@@ -1,8 +1,8 @@
 import csv
 from typing import Dict
 
-from PyQt6 import QtWidgets, QtGui, QtCore
-from PyQt6.QtCore import QRect
+from PySide6 import QtGui, QtCore
+from PySide6.QtCore import QRect
 
 from python.core.core_classes import Obj
 from python.core.core_functions import *
@@ -14,41 +14,10 @@ from python.util.values import basic_bin_bytes
 from python.util.xml_reader import XmlReader
 
 
-class Page(QtWidgets.QMainWindow):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.setWindowIcon(QtGui.QIcon(u':/icons/icon'))
-        self.setWindowFlag(QtCore.Qt.WindowType.WindowMaximizeButtonHint, False)
-        self.setWindowFlag(QtCore.Qt.WindowType.WindowMinimizeButtonHint, False)
-
-    def init_build(self) -> None:
-        pass
-
-    def output(self) -> None:
-        pass
-
-    def get_data(self) -> None:
-        pass
-
-    def file_chose(self, regulation: str = "*") -> str:
-        directory, _ = QtWidgets.QFileDialog.getOpenFileName(
-            self, "Chose Files", "", regulation,
-            options=QtWidgets.QFileDialog.Option.DontUseNativeDialog
-        )
-        return directory
-
-    def dir_chose(self):
-        directory = QtWidgets.QFileDialog.getExistingDirectory(
-            self, "Chose Directory", "",
-            QtWidgets.QFileDialog.Option.DontUseNativeDialog
-        )
-        return directory
-
-
-class ToolMainWindow(QtWidgets.QMainWindow, BasicToolMainWindow):
+class ToolMainWindow(BasicToolMainWindow):
     def __init__(self):
         self.pushButton_1 = self.pushButton_2 = self.pushButton_3 = self.pushButton_4 = None
-        super().__init__(main_window=self)
+        BasicToolMainWindow.__init__(self, self)
         self.page1 = ModelEditor()
         self.page2 = CsvYieldTool()
         self.page3 = AnimationEditor()
@@ -63,7 +32,7 @@ class ToolMainWindow(QtWidgets.QMainWindow, BasicToolMainWindow):
         self.pushButton_3.clicked.connect(self.page3.show)
 
 
-class ModelEditor(Page, ModelPlayer):
+class ModelEditor(ModelPlayer):
     def __init__(self):
         super().__init__(main_window=self)
         self.input_directory: str = ""
@@ -182,7 +151,7 @@ class ModelEditor(Page, ModelPlayer):
                 widget.setDisabled(not bool(state))
 
 
-class CsvYieldTool(Page, BasicYieldCsvPage):
+class CsvYieldTool(BasicYieldCsvPage):
     def __init__(self):
         self.worker = None
         super().__init__(main_window=self)
@@ -195,6 +164,7 @@ class CsvYieldTool(Page, BasicYieldCsvPage):
     def init_build(self) -> None:
         self.pushButton.clicked.connect(self.get_data)
         self.buttonBox.accepted.connect(self.output)
+        self.buttonBox.rejected.connect(self.close)
         self.local_timer.timeout.connect(self.update_progress)
 
     def get_data(self) -> None:
@@ -209,17 +179,17 @@ class CsvYieldTool(Page, BasicYieldCsvPage):
     def output(self) -> None:
         if self.input_directory:
             try:
+                if self.worker:
+                    self.worker.finished.disconnect()
                 self.progressBar.setValue(0)
                 self.worker = WorkerThread(self.input_directory, "./csv",
-                                           self.write_csv_animation
-                                           )
-                self.finished_files += 1
+                                           lambda: self.write_csv_animation())
+                self.worker.finished.connect(self.on_finished)
+                self.worker.start()
+                self.local_timer.start(50)
             except Exception as e:
                 ErrorDialog(self, e)
                 self.error_files += 1
-        self.worker.finished.connect(self.on_finished)
-        self.worker.start()
-        self.local_timer.start(50)
 
     def update_progress(self):
         new_value = int(round(self.finished_files + self.error_files / self.total_files, 2))
@@ -259,7 +229,7 @@ class CsvYieldTool(Page, BasicYieldCsvPage):
             ErrorDialog(self, e)
 
 
-class AnimationEditor(AnimationPlayer, Page):
+class AnimationEditor(AnimationPlayer):
     def __init__(self):
         super().__init__()
         self.input_directory: str = ""

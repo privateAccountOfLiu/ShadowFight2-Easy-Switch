@@ -1,4 +1,4 @@
-from PyQt6 import QtWidgets
+from PySide6 import QtWidgets
 
 from python.core.core_functions import get_error_msg, write_to_log
 

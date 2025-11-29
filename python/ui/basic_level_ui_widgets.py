@@ -1,10 +1,10 @@
 import vtk
-from PyQt6.QtCore import (QCoreApplication, QMetaObject, QRect,
-                          Qt, QTimer, QSize)
-from PyQt6.QtGui import QAction, QIcon
-from PyQt6.QtWidgets import (QGridLayout, QLabel, QPushButton, QWidget, QMainWindow, QHBoxLayout, QVBoxLayout, QSlider,
-                             QMenuBar, QMenu, QCheckBox, QDoubleSpinBox, QComboBox, QProgressBar, QTextBrowser,
-                             QDialogButtonBox, QStatusBar, QSpinBox)
+from PySide6.QtCore import (QCoreApplication, QMetaObject, QRect,
+                            Qt, QTimer, QSize)
+from PySide6.QtGui import QAction, QIcon
+from PySide6.QtWidgets import (QGridLayout, QLabel, QPushButton, QWidget, QMainWindow, QHBoxLayout, QVBoxLayout,
+                               QSlider, QMenuBar, QMenu, QCheckBox, QDoubleSpinBox, QComboBox, QProgressBar,
+                               QTextBrowser, QDialogButtonBox, QStatusBar, QSpinBox, QFileDialog)
 from pyvistaqt import QtInteractor
 
 from python.core.core_classes import MoveBin
@@ -12,8 +12,40 @@ from python.ui.notice_dialog_widgets import ErrorDialog
 from python.util.values import basic_bin_bytes
 
 
-class BasicToolMainWindow:
-    def __init__(self, main_window):
+class Page(QMainWindow):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setWindowIcon(QIcon(u':/icons/icon'))
+        self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
+        self.setWindowFlag(Qt.WindowType.WindowMinimizeButtonHint, False)
+
+    def init_build(self) -> None:
+        pass
+
+    def output(self) -> None:
+        pass
+
+    def get_data(self) -> None:
+        pass
+
+    def file_chose(self, regulation: str = "*") -> str:
+        directory, _ = QFileDialog.getOpenFileName(
+            self, "Chose Files", "", regulation,
+            options=QFileDialog.Option.DontUseNativeDialog
+        )
+        return directory
+
+    def dir_chose(self):
+        directory = QFileDialog.getExistingDirectory(
+            self, "Chose Directory", "",
+            QFileDialog.Option.DontUseNativeDialog
+        )
+        return directory
+
+
+class BasicToolMainWindow(QMainWindow):
+    def __init__(self, main_window, parent=None):
+        super().__init__(parent=parent)
         self.label = None
         self.pushButton_1 = None
         self.pushButton_2 = None
@@ -77,8 +109,9 @@ class BasicToolMainWindow:
                                                       None))
 
 
-class ModelPlayer:
-    def __init__(self, main_window):
+class ModelPlayer(Page):
+    def __init__(self, main_window, parent=None):
+        super().__init__(parent)
         self.statusBar_A = None
         self.menuHelp = None
         self.menuSetting = None
@@ -358,8 +391,9 @@ class ModelPlayer:
         self.menuHelp.setTitle(QCoreApplication.translate("MainWindow", u"Help", None))
 
 
-class BasicYieldCsvPage:
-    def __init__(self, main_window):
+class BasicYieldCsvPage(Page):
+    def __init__(self, main_window, parent=None):
+        super().__init__(parent)
         self.buttonBox = None
         self.label_6 = None
         self.label = None
@@ -565,7 +599,8 @@ class BasicYieldCsvPage:
         self.label_6.setText(QCoreApplication.translate("MainWindow", u"Progress:", None))
 
 
-class AnimationPlayer(QMainWindow):
+# noinspection PyUnresolvedReferences
+class AnimationPlayer(Page):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.content = basic_bin_bytes
@@ -580,7 +615,7 @@ class AnimationPlayer(QMainWindow):
         self.setCentralWidget(self.central_widget)
         self.control_layout = QHBoxLayout()
         self.layout = QVBoxLayout(self.central_widget)
-        self.plotter = QtInteractor(parent=self.parent(), auto_update=True)
+        self.plotter = QtInteractor(parent=parent, auto_update=True)
         self.renderer = vtk.vtkRenderer()
         self.plotter.GetRenderWindow().AddRenderer(self.renderer)
         self.timer = QTimer()
@@ -681,7 +716,7 @@ class AnimationPlayer(QMainWindow):
             sphere_source.SetThetaResolution(8)
 
             mapper = vtk.vtkPolyDataMapper()
-            mapper.SetInputConnection(sphere_source.GetOutputPort())
+            mapper.SetInputConnection(0, sphere_source.GetOutputPort(0))
 
             actor = vtk.vtkActor()
             actor.SetMapper(mapper)
@@ -697,7 +732,7 @@ class AnimationPlayer(QMainWindow):
             line_source = vtk.vtkLineSource()
 
             mapper = vtk.vtkPolyDataMapper()
-            mapper.SetInputConnection(line_source.GetOutputPort())
+            mapper.SetInputConnection(0, line_source.GetOutputPort(0))
 
             actor = vtk.vtkActor()
             actor.SetMapper(mapper)
@@ -782,7 +817,7 @@ class AnimationPlayer(QMainWindow):
             sphere_source.SetPhiResolution(8)
             sphere_source.SetThetaResolution(8)
             mapper = vtk.vtkPolyDataMapper()
-            mapper.SetInputConnection(sphere_source.GetOutputPort())
+            mapper.SetInputConnection(0, sphere_source.GetOutputPort(0))
             actor = vtk.vtkActor()
             actor.SetMapper(mapper)
             hue = i / max(1, self.num_nodes - 1)
@@ -791,10 +826,6 @@ class AnimationPlayer(QMainWindow):
             self.sphere_actors.append(actor)
             self.sphere_sources.append(sphere_source)
         self.setup_skeleton_lines()
-        axes = vtk.vtkAxesActor()
-        axes_length = max(self.data_bounds['range']) * 0.5 if self.data_bounds else 1.0
-        axes.SetTotalLength(axes_length, axes_length, axes_length)
-        self.renderer.AddActor(axes)
         self.setup_camera()
         self.setup_trajectories()
 
@@ -811,7 +842,7 @@ class AnimationPlayer(QMainWindow):
             line_source = vtk.vtkLineSource()
 
             mapper = vtk.vtkPolyDataMapper()
-            mapper.SetInputConnection(line_source.GetOutputPort())
+            mapper.SetInputConnection(0, line_source.GetOutputPort(0))
 
             actor = vtk.vtkActor()
             actor.SetMapper(mapper)
@@ -964,7 +995,7 @@ class AnimationPlayer(QMainWindow):
         try:
             super().showEvent(event)
             if not hasattr(self, 'plotter') or self.plotter is None:
-                self.plotter = QtInteractor(parent=self.parent(), auto_update=True)
+                self.plotter = QtInteractor(auto_update=True)
                 self.renderer = vtk.vtkRenderer()
                 self.plotter.GetRenderWindow().AddRenderer(self.renderer)
                 self.load_bin_file(self.content)
