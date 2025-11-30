@@ -5,8 +5,7 @@
 
 ## 项目介绍
 ### 代码说明
-&emsp;&emsp;项目提供了发行版EXE文件和一些源代码。若您希望直接使用本项目，只需下载发行版EXE文件并运行它（注意：程序将在其所在目录中新建三个文件夹作为输出文件夹）。
-&emsp;&emsp;若您希望通过源代码运行程序，您仅需下载所有的Python代码，但需要你注意文件间的结构关系。您也可以直接克隆本项目到本地运行。在运行之前，您必须要安装依赖：
+&emsp;&emsp;项目提供了发行版EXE文件和一些源代码。若您希望直接使用本项目，只需下载发行版EXE文件并运行它（注意：程序将在其所在目录中新建三个文件夹作为输出文件夹）;若您希望通过源代码运行程序，您仅需下载所有的Python代码，但需要你注意文件间的结构关系。您也可以直接克隆本项目到本地运行。在运行之前，您必须要安装依赖：
 
 ```
 pip install pyside6 vtk
@@ -34,15 +33,13 @@ pip install pyside6 vtk
 ### 本程序为开源项目，请勿用作商业活动！
 
 ***
-# Shadow Fight 2 Simple Converter (English Version)  
+# Shadow Fight 2 Easy Switch (English Version)  
 ## Abstract  
 &emsp;&emsp;A Python project based on PySide6 and Vtk that helps you convert game-related files, providing an enhanced gaming experience for *Shadow Fight 2*.  
 
 ## Project Introduction  
 ### Code Description  
-&emsp;&emsp;The project provides a release version of the EXE file and some source code. If you wish to use the project directly, simply download the release version of the EXE file and run it (Note: The program will create three new folders in its directory as output folders).  
-
-&emsp;&emsp;If you wish to run the program from the source code, you only need to download all the Python code, but you must pay attention to the structural relationships between the files. You can also clone the project directly to run it locally. Before running, you must install the dependencies:  
+&emsp;&emsp;The project provides a release version of the EXE file and some source code. If you wish to use the project directly, simply download the release version of the EXE file and run it (Note: The program will create three new folders in its directory as output folders); If you wish to run the program from the source code, you only need to download all the Python code, but you must pay attention to the structural relationships between the files. You can also clone the project directly to run it locally. Before running, you must install the dependencies:  
 ```  
 pip install pyside6 vtk  
 ```  
