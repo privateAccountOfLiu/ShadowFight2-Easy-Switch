@@ -7,14 +7,17 @@
 ### 代码说明
 &emsp;&emsp;项目提供了发行版EXE文件和一些源代码。若您希望直接使用本项目，只需下载发行版EXE文件并运行它（注意：程序将在其所在目录中新建三个文件夹作为输出文件夹）。
 &emsp;&emsp;若您希望通过源代码运行程序，您仅需下载所有的Python代码，但需要你注意文件间的结构关系。您也可以直接克隆本项目到本地运行。在运行之前，您必须要安装依赖：
+
 ```
 pip install pyside6 vtk
 ```
-基于Qt框架的GUI程序：
+
+&emsp;&emsp;基于Qt框架的GUI程序：
 直接运行`main.py`程序，这是我们的GUI入口，进入界面之后可以通过Qt控件选择所需功能。
 
 ### 功能1：模型转换
-#### ModelEditor：支持.xml(游戏内模型)与.obj(WaveFront模型)：
+#### ModelEditor：
+#### 支持.xml(游戏内模型)与.obj(WaveFront模型)：
 &emsp;&emsp;通过此功能，您将可视化选中的模型，并且可以对模型进行一些整体性质和标签的修改，最终导出令你满意的模型文件，在常见的Wavefront模型（.obj文件）与《ShadowFight2》专用模型（.xml文件）之间建起一道格式转换的桥梁。
 
 ### 功能2：动作文件合并
@@ -23,11 +26,13 @@ pip install pyside6 vtk
 
 ### 功能3：动作文件解码与编码
 #### AnimationEditor
+#### 支持结构化数据(.csv)与游戏内序列化数据(.bin/bytes)
 &emsp;&emsp;将二进制动作文件解码为csv表格存储格式，或将csv表格中的动作信息编码为《ShadowFight2》可识别的二进制文件，您可以在此功能中预览整个动作是如何工作的！
 
 ## 注意事项
 
 ### 本程序为开源项目，请勿用作商业活动！
+
 ***
 # Shadow Fight 2 Simple Converter (English Version)  
 ## Abstract  
@@ -41,11 +46,11 @@ pip install pyside6 vtk
 ```  
 pip install pyside6 vtk  
 ```  
-A GUI program based on the Qt framework:  
-Run the `main.py` program directly. This is the entry point for our GUI. Once the interface is open, you can use Qt controls to select the desired functionality.  
+&emsp;&emsp;A GUI program based on the Qt framework: Run the `main.py` program directly. This is the entry point for our GUI. Once the interface is open, you can use Qt controls to select the desired functionality.  
 
 ### Feature 1: Model Conversion  
-#### ModelEditor: Supports .xml (in-game models) and .obj (WaveFront models):  
+#### ModelEditor
+#### Supports .xml (in-game models) and .obj (WaveFront models):  
 &emsp;&emsp;With this feature, you can visualize the selected model and make modifications to its overall properties and labels. Finally, you can export the model file to your satisfaction, building a bridge for format conversion between common Wavefront models (.obj files) and *Shadow Fight 2* specific models (.xml files).  
 
 ### Feature 2: Motion File Merging  
