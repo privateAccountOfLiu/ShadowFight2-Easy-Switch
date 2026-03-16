@@ -35,7 +35,7 @@ pip install pyside6 OpenGL
 ***
 # Shadow Fight 2 Easy Switch (English Version)  
 ## Abstract  
-&emsp;&emsp;A Python project based on PySide6 and Vtk that helps you convert game-related files, providing an enhanced gaming experience for *Shadow Fight 2*.  
+&emsp;&emsp;A Python project based on PySide6 and OpenGL that helps you convert game-related files, providing an enhanced gaming experience for *Shadow Fight 2*.  
 
 ## Project Introduction  
 ### Code Description  
