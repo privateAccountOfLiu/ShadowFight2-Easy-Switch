@@ -8,7 +8,8 @@ from python.util.values import *
 
 class Tools:
     @staticmethod
-    def edit_obj_data(obj_p: Obj, set_config: dict) -> Obj:  # 对obj获取到的数据进行处理
+    def edit_obj_data(obj_p: Obj, set_config: dict) -> Obj:
+        """Apply rotation and optional zoom to an Obj instance according to configuration."""
         obj_p.standardize_0()
         obj_p.standardize_1()
         obj_p.rotate(set_config['rotate_method'])
@@ -18,6 +19,7 @@ class Tools:
 
     @staticmethod
     def model_obj_to_xml(obj_p: Obj, set_config: dict) -> str:
+        """Convert an Obj instance into an XML document using model configuration."""
         xml_doc = gap_msg_0
         node_item = ["    " + str(Node(*node, model_type=set_config['type'], node_id=index + set_config['begin_id'])) +
                      '\n'
@@ -34,6 +36,7 @@ class Tools:
 
     @staticmethod
     def animation_serialize(_csv: str) -> MoveBin:
+        """Serialize CSV animation data into a MoveBin binary structure."""
         _result = b''
         header_struct, point_struct, end_byte = struct.Struct('I'), struct.Struct('<3f'), struct.pack('B', 1)
         with open(_csv, 'r', encoding="utf-8") as csv_in:
@@ -52,4 +55,9 @@ class Tools:
 
     @staticmethod
     def animation_deserialize(_bin: MoveBin) -> str:
-        return "\n".join(",".join(str(_i) for _i in frame.points) for i, frame in enumerate(_bin.bin_data))
+        """Convert a MoveBin instance back into CSV text with quoted coordinate triples."""
+        lines = []
+        for frame in _bin.bin_data:
+            row = ",".join(f"\"{point}\"" for point in frame.points)
+            lines.append(row)
+        return "\n".join(lines)

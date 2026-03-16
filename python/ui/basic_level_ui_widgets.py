@@ -1,50 +1,79 @@
-import vtk
 from PySide6.QtCore import (QCoreApplication, QMetaObject, QRect,
                             Qt, QTimer, QSize)
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (QGridLayout, QLabel, QPushButton, QWidget, QMainWindow, QHBoxLayout, QVBoxLayout,
                                QSlider, QMenuBar, QMenu, QCheckBox, QDoubleSpinBox, QComboBox, QProgressBar,
-                               QTextBrowser, QDialogButtonBox, QStatusBar, QSpinBox, QFileDialog)
-from pyvistaqt import QtInteractor
+                               QTextBrowser, QDialogButtonBox, QStatusBar, QSpinBox, QFileDialog, QFrame)
+import numpy as np
+import pyqtgraph as pg
+import pyqtgraph.opengl as gl
 
 from python.core.core_classes import MoveBin
-from python.ui.notice_dialog_widgets import ErrorDialog
+from python.ui.notice_dialog_widgets import ErrorDialog, HelpDialog
+from python.ui.settings_dialog import SettingsDialog
+from python.util import i18n
 from python.util.values import basic_bin_bytes
 
 
 class Page(QMainWindow):
+    """Base window class that provides common file dialogs and shared actions."""
+
     def __init__(self, *args, **kwargs):
+        """Initialize the page window with icon and fixed window flags."""
         super().__init__(*args, **kwargs)
-        self.setWindowIcon(QIcon(u':/icons/icon'))
+        self.setWindowIcon(QIcon(u":/icons/icon"))
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
         self.setWindowFlag(Qt.WindowType.WindowMinimizeButtonHint, False)
 
     def init_build(self) -> None:
+        """Hook for subclasses to initialize their specific UI components."""
         pass
 
     def output(self) -> None:
+        """Hook for subclasses to implement export or output behavior."""
         pass
 
     def get_data(self) -> None:
+        """Hook for subclasses to implement input or data-loading behavior."""
         pass
 
+    def show_help_dialog(self) -> None:
+        """Open the shared help/about dialog."""
+        dialog = HelpDialog(self)
+        dialog.exec()
+
+    def show_settings_dialog(self) -> None:
+        """Open the shared application settings dialog."""
+        dialog = SettingsDialog(self)
+        dialog.exec()
+
     def file_chose(self, regulation: str = "*") -> str:
+        """Show a file open dialog and return the selected file path."""
         directory, _ = QFileDialog.getOpenFileName(
-            self, "Chose Files", "", regulation,
-            options=QFileDialog.Option.DontUseNativeDialog
+            self,
+            "Chose Files",
+            "",
+            regulation,
+            options=QFileDialog.Option.DontUseNativeDialog,
         )
         return directory
 
-    def dir_chose(self):
+    def dir_chose(self) -> str:
+        """Show a directory chooser dialog and return the selected directory path."""
         directory = QFileDialog.getExistingDirectory(
-            self, "Chose Directory", "",
-            QFileDialog.Option.DontUseNativeDialog
+            self,
+            "Chose Directory",
+            "",
+            QFileDialog.Option.DontUseNativeDialog,
         )
         return directory
 
 
 class BasicToolMainWindow(QMainWindow):
+    """Landing window that lets the user choose between the main tool pages."""
+
     def __init__(self, main_window, parent=None):
+        """Create the main landing window and configure its UI layout."""
         super().__init__(parent=parent)
         self.label = None
         self.pushButton_1 = None
@@ -56,6 +85,7 @@ class BasicToolMainWindow(QMainWindow):
         self.setup_ui(main_window)
 
     def setup_ui(self, main_window):
+        """Build the landing window layout and hook up the three entry buttons."""
         if not main_window.objectName():
             main_window.setObjectName(u"MainWindow")
         main_window.resize(550, 400)
@@ -69,17 +99,14 @@ class BasicToolMainWindow(QMainWindow):
         self.gridLayout.setContentsMargins(0, 0, 0, 0)
         self.pushButton_3 = QPushButton(self.gridLayoutWidget)
         self.pushButton_3.setObjectName(u"pushButton_3")
-
         self.gridLayout.addWidget(self.pushButton_3, 2, 0, 1, 2)
 
         self.pushButton_2 = QPushButton(self.gridLayoutWidget)
         self.pushButton_2.setObjectName(u"pushButton_2")
-
         self.gridLayout.addWidget(self.pushButton_2, 1, 0, 1, 2)
 
         self.pushButton_1 = QPushButton(self.gridLayoutWidget)
         self.pushButton_1.setObjectName(u"pushButton_1")
-
         self.gridLayout.addWidget(self.pushButton_1, 0, 0, 1, 2)
 
         self.label = QLabel(self.centralwidget)
@@ -89,28 +116,27 @@ class BasicToolMainWindow(QMainWindow):
         main_window.setCentralWidget(self.centralwidget)
 
         self.re_translate_ui(main_window)
-
         QMetaObject.connectSlotsByName(main_window)
 
     def re_translate_ui(self, main_window):
-        main_window.setWindowTitle(QCoreApplication.translate("MainWindow", u"Shadow Fight 2 Easy Switch", None))
-        self.pushButton_3.setText(QCoreApplication.translate("MainWindow", u"Animation Editor", None))
-        self.pushButton_2.setText(QCoreApplication.translate("MainWindow",
-                                                             u"Frames(.obj(multiple)) to (Format Data).csv",
-                                                             None))
-        self.pushButton_1.setText(QCoreApplication.translate("MainWindow",
-                                                             u"Model Editor",
-                                                             None))
-        self.label.setText(QCoreApplication.translate("MainWindow",
-                                                      u"<html><head/><body><p>"
-                                                      u"<span style=\" font-size:24pt; font-weight:700;\">"
-                                                      u"Shadow Fight 2 Easy Switch"
-                                                      u"</span></p></body></html>",
-                                                      None))
+        """Apply translated texts for the main title and entry buttons."""
+        main_window.setWindowTitle(i18n.tr("app.title"))
+        self.pushButton_3.setText(i18n.tr("main.button.animation"))
+        self.pushButton_2.setText(i18n.tr("main.button.csv"))
+        self.pushButton_1.setText(i18n.tr("main.button.model"))
+        self.label.setText(
+            "<html><head/><body><p>"
+            "<span style=\" font-size:24pt; font-weight:700;\">"
+            "Shadow Fight 2 Easy Switch"
+            "</span></p></body></html>"
+        )
 
 
 class ModelPlayer(Page):
+    """Main window for previewing, configuring and exporting 3D model files."""
+
     def __init__(self, main_window, parent=None):
+        """Initialize all UI fields and build the model player layout."""
         super().__init__(parent)
         self.statusBar_A = None
         self.menuHelp = None
@@ -150,6 +176,7 @@ class ModelPlayer(Page):
         self.setup_ui(main_window)
 
     def setup_ui(self, main_window):
+        """Create all widgets, menus and status bar for the model player."""
         if not main_window.objectName():
             main_window.setObjectName(u"MainWindow")
         main_window.resize(800, 600)
@@ -341,6 +368,11 @@ class ModelPlayer(Page):
         self.statusBar_A.addWidget(self.statue_label)
         main_window.setStatusBar(self.statusBar_A)
 
+        self.actionHelpAbout = QAction(main_window)
+        self.actionHelpAbout.setObjectName(u"actionHelpAbout")
+        self.actionSettings = QAction(main_window)
+        self.actionSettings.setObjectName(u"actionSettings")
+
         self.menubar.addAction(self.menuFile.menuAction())
         self.menubar.addAction(self.menuSetting.menuAction())
         self.menubar.addAction(self.menuHelp.menuAction())
@@ -348,51 +380,65 @@ class ModelPlayer(Page):
         self.menuFile.addAction(self.menuExport.menuAction())
         self.menuExport.addAction(self.action_xml)
         self.menuExport.addAction(self.action_obj)
+        self.menuSetting.addAction(self.actionSettings)
+        self.menuHelp.addAction(self.actionHelpAbout)
 
         self.re_translate_ui(main_window)
 
         QMetaObject.connectSlotsByName(main_window)
-    # setupUi
+
+        self.actionHelpAbout.triggered.connect(self.show_help_dialog)
+        self.actionSettings.triggered.connect(self.show_settings_dialog)
 
     def re_translate_ui(self, main_window):
-        main_window.setWindowTitle(QCoreApplication.translate("MainWindow", u"ModelPlayer", None))
-        self.actionOpen.setText(QCoreApplication.translate("MainWindow", u"Open", None))
-        self.action_xml.setText(QCoreApplication.translate("MainWindow", u"xml", None))
-        self.action_obj.setText(QCoreApplication.translate("MainWindow", u"(WaveFront)obj", None))
-        self.comboBox_2.setItemText(0, QCoreApplication.translate("MainWindow", u"False", None))
-        self.comboBox_2.setItemText(1, QCoreApplication.translate("MainWindow", u"True", None))
+        """Apply texts for actions, labels and menus, including i18n-aware labels."""
+        main_window.setWindowTitle("ModelPlayer")
+        self.actionOpen.setText("Open")
+        self.action_xml.setText("xml")
+        self.action_obj.setText("(WaveFront)obj")
+        self.comboBox_2.setItemText(0, "False")
+        self.comboBox_2.setItemText(1, "True")
 
-        self.label_3.setText(QCoreApplication.translate("MainWindow", u"range(x):", None))
-        self.label_7.setText(QCoreApplication.translate("MainWindow", u"is zoom:", None))
-        self.label_5.setText(QCoreApplication.translate("MainWindow", u"range(z):", None))
-        self.label_8.setText(QCoreApplication.translate("MainWindow", u"begin_id", None))
-        self.comboBox.setItemText(0, QCoreApplication.translate("MainWindow", u"xyz", None))
-        self.comboBox.setItemText(1, QCoreApplication.translate("MainWindow", u"xzy", None))
-        self.comboBox.setItemText(2, QCoreApplication.translate("MainWindow", u"yxz", None))
-        self.comboBox.setItemText(3, QCoreApplication.translate("MainWindow", u"yzx", None))
-        self.comboBox.setItemText(4, QCoreApplication.translate("MainWindow", u"zxy", None))
-        self.comboBox.setItemText(5, QCoreApplication.translate("MainWindow", u"zyx", None))
+        self.label_3.setText(i18n.tr("label.range_x"))
+        self.label_7.setText(i18n.tr("label.is_zoom"))
+        self.label_5.setText(i18n.tr("label.range_z"))
+        self.label_8.setText(i18n.tr("label.begin_id"))
+        self.comboBox.setItemText(0, "xyz")
+        self.comboBox.setItemText(1, "xzy")
+        self.comboBox.setItemText(2, "yxz")
+        self.comboBox.setItemText(3, "yzx")
+        self.comboBox.setItemText(4, "zxy")
+        self.comboBox.setItemText(5, "zyx")
 
-        self.comboBox_4.setItemText(0, QCoreApplication.translate("MainWindow", u"weapon", None))
-        self.comboBox_4.setItemText(1, QCoreApplication.translate("MainWindow", u"helm", None))
-        self.comboBox_4.setItemText(2, QCoreApplication.translate("MainWindow", u"ranged", None))
-        self.comboBox_4.setItemText(3, QCoreApplication.translate("MainWindow", u"armor_a", None))
-        self.comboBox_4.setItemText(4, QCoreApplication.translate("MainWindow", u"armor_b", None))
-        self.comboBox_4.setItemText(5, QCoreApplication.translate("MainWindow", u"armor_c", None))
+        self.comboBox_4.setItemText(0, "weapon")
+        self.comboBox_4.setItemText(1, "helm")
+        self.comboBox_4.setItemText(2, "ranged")
+        self.comboBox_4.setItemText(3, "armor_a")
+        self.comboBox_4.setItemText(4, "armor_b")
+        self.comboBox_4.setItemText(5, "armor_c")
 
-        self.checkBox.setText(QCoreApplication.translate("MainWindow", u"Advanced Setting", None))
-        self.label_4.setText(QCoreApplication.translate("MainWindow", u"range(y):", None))
-        self.label_9.setText(QCoreApplication.translate("MainWindow", u"type:", None))
-        self.label_6.setText(QCoreApplication.translate("MainWindow", u"rotate:", None))
-        self.pushButton.setText(QCoreApplication.translate("MainWindow", u"Apply", None))
-        self.menuFile.setTitle(QCoreApplication.translate("MainWindow", u"File", None))
-        self.menuExport.setTitle(QCoreApplication.translate("MainWindow", u"Export", None))
-        self.menuSetting.setTitle(QCoreApplication.translate("MainWindow", u"Setting", None))
-        self.menuHelp.setTitle(QCoreApplication.translate("MainWindow", u"Help", None))
+        self.checkBox.setText(i18n.tr("label.advanced_setting"))
+        self.label_4.setText(i18n.tr("label.range_y"))
+        self.label_9.setText(i18n.tr("label.type"))
+        self.label_6.setText(i18n.tr("label.rotate"))
+        self.pushButton.setText(i18n.tr("button.apply"))
+
+        # 菜单与设置项使用多语言资源
+        self.menuFile.setTitle(i18n.tr("menu.file"))
+        self.menuExport.setTitle(i18n.tr("menu.export"))
+        self.menuSetting.setTitle(i18n.tr("menu.setting"))
+        self.menuHelp.setTitle(i18n.tr("menu.help"))
+
+        self.actionHelpAbout.setText(i18n.tr("menu.help.about"))
+        self.actionSettings.setText(i18n.tr("menu.setting.settings"))
+
 
 
 class BasicYieldCsvPage(Page):
+    """Base page that provides common controls for CSV batch conversion tools."""
+
     def __init__(self, main_window, parent=None):
+        """Initialize the CSV page layout and connect designer-generated widgets."""
         super().__init__(parent)
         self.buttonBox = None
         self.label_6 = None
@@ -419,6 +465,7 @@ class BasicYieldCsvPage(Page):
         self.setup_ui(main_window)
 
     def setup_ui(self, main_window):
+        """Build the CSV configuration panel, progress bar and button box."""
         if not main_window.objectName():
             main_window.setObjectName(u"MainWindow")
         main_window.resize(400, 400)
@@ -571,19 +618,12 @@ class BasicYieldCsvPage(Page):
     # setupUi
 
     def re_translate_ui(self, main_window):
-        main_window.setWindowTitle(QCoreApplication.translate("MainWindow", u"ToCsv", None))
-        self.label_5.setText(QCoreApplication.translate("MainWindow", u"is zoom:", None))
-        self.label_3.setText(QCoreApplication.translate("MainWindow", u"range(z):", None))
-        self.label_4.setText(QCoreApplication.translate("MainWindow", u"rotate:", None))
-        self.pushButton.setText(QCoreApplication.translate("MainWindow", u"Select Dir", None))
-        self.label_title.setText(QCoreApplication.translate("MainWindow",
-                                                            u"<html><head/><body><p>"
-                                                            u"<span style=\" font-size:12pt; font-weight:700;\">"
-                                                            u"Bin: .objs to .csv"
-                                                            u"</span></p>"
-                                                            u"<p>output and input are in './objs_to_bin'</p>"
-                                                            u"</body></html>",
-                                                            None))
+        main_window.setWindowTitle(i18n.tr("csv.window.title"))
+        self.label_5.setText(i18n.tr("label.is_zoom"))
+        self.label_3.setText(i18n.tr("label.range_z"))
+        self.label_4.setText(i18n.tr("label.rotate"))
+        self.pushButton.setText(i18n.tr("csv.button.select_dir"))
+        self.label_title.setText(i18n.tr("csv.label.title"))
         self.comboBox.setItemText(0, QCoreApplication.translate("MainWindow", u"xyz", None))
         self.comboBox.setItemText(1, QCoreApplication.translate("MainWindow", u"xzy", None))
         self.comboBox.setItemText(2, QCoreApplication.translate("MainWindow", u"yxz", None))
@@ -594,14 +634,17 @@ class BasicYieldCsvPage(Page):
         self.comboBox_2.setItemText(0, QCoreApplication.translate("MainWindow", u"False", None))
         self.comboBox_2.setItemText(1, QCoreApplication.translate("MainWindow", u"True", None))
 
-        self.label_2.setText(QCoreApplication.translate("MainWindow", u"range(y):", None))
-        self.label.setText(QCoreApplication.translate("MainWindow", u"range(x):", None))
-        self.label_6.setText(QCoreApplication.translate("MainWindow", u"Progress:", None))
+        self.label_2.setText(i18n.tr("label.range_y"))
+        self.label.setText(i18n.tr("label.range_x"))
+        self.label_6.setText(i18n.tr("csv.label.progress"))
 
 
 # noinspection PyUnresolvedReferences
 class AnimationPlayer(Page):
+    """3D animation player that visualizes skeletal motion from binary or CSV data."""
+
     def __init__(self, parent=None):
+        """Initialize animation state, 3D view widgets and playback controls."""
         super().__init__(parent)
         self.content = basic_bin_bytes
         self.sphere_radius = 0
@@ -615,14 +658,28 @@ class AnimationPlayer(Page):
         self.setCentralWidget(self.central_widget)
         self.control_layout = QHBoxLayout()
         self.layout = QVBoxLayout(self.central_widget)
-        self.plotter = QtInteractor(parent=parent, auto_update=True)
-        self.renderer = vtk.vtkRenderer()
-        self.plotter.GetRenderWindow().AddRenderer(self.renderer)
+
+        self.view_frame = QFrame(self.central_widget)
+        self.view_frame.setObjectName("animationViewerFrame")
+        self.view_frame.setStyleSheet(
+            "#animationViewerFrame {"
+            "  background-color: rgb(245,246,248);"
+            "  border: 1px solid #4b5563;"
+            "  border-radius: 8px;"
+            "}"
+        )
+        self.view_frame_layout = QVBoxLayout(self.view_frame)
+        self.view_frame_layout.setContentsMargins(4, 4, 4, 4)
+
+        self.view = gl.GLViewWidget(self.view_frame)
+        self.view.setBackgroundColor((245, 246, 248))
+        self.view.opts['distance'] = 10
+        self.view_frame_layout.addWidget(self.view)
         self.timer = QTimer()
-        self.play_button = QPushButton("Play")
-        self.prev_button = QPushButton("Last")
-        self.next_button = QPushButton("Next")
-        self.reset_camera_button = QPushButton("Reset Camera")
+        self.play_button = QPushButton()
+        self.prev_button = QPushButton()
+        self.next_button = QPushButton()
+        self.reset_camera_button = QPushButton()
         self.frame_slider = QSlider(Qt.Orientation.Horizontal)
         self.action_open = QAction(self)
         self.action_csv = QAction(self)
@@ -632,7 +689,7 @@ class AnimationPlayer(Page):
         self.menuSave_as = QMenu(self.menuFile)
         self.menuSetting = QMenu(self.menubar)
         self.menuHelp = QMenu(self.menubar)
-        self.trajectory_checkbox = QCheckBox("Show Orbit")
+        self.trajectory_checkbox = QCheckBox()
         self.current_frame = 0
 
         self.frame_label = QLabel("Frame 0/0")
@@ -641,10 +698,9 @@ class AnimationPlayer(Page):
         self.show_trajectories = False
         self.scale_factor = 1.0
 
-        self.trajectory_actors = []
-        self.line_actors = []
-        self.sphere_sources = []
-        self.sphere_actors = []
+        self.scatter_item = None
+        self.line_items = []
+        self.trajectory_items = []
 
         self.connections = [
             (13, 15), (12, 14), (14, 30), (29, 30), (29, 32), (30, 32), (14, 16), (14, 32), (14, 29), (15, 31),
@@ -657,26 +713,38 @@ class AnimationPlayer(Page):
         self.setup_ui()
         self.load_bin_file(self.content)
         self.setup_animation()
-        self.plotter.Initialize()
-        self.plotter.Start()
 
     def load_bin_file(self, content: bytes):
+        """Load raw binary animation content and prepare transformed frame data."""
         try:
             self.content = content
             self.move_bin = MoveBin.build_binary(content)
-            self.frames_data = [frame.points for frame in self.move_bin.bin_data]
+            raw_frames = [frame.points for frame in self.move_bin.bin_data]
             self.num_frames = self.move_bin.frames_num
             self.num_nodes = self.move_bin.bin_data[0].length if self.num_frames > 0 else 0
+
+            self.frames_data = [
+                [self._transform_point(p) for p in frame]
+                for frame in raw_frames
+            ]
+
             self.data_bounds = self.calculate_data_bounds()
             self.sphere_radius = self.calculate_sphere_radius()
             self.update_ui_after_loading()
-            self.setup_vtk_after_loading()
+            self.setup_gl_after_loading()
             self.current_frame = 0
             self.update_frame_display()
         except Exception as e:
             ErrorDialog(self, e)
 
+    @staticmethod
+    def _transform_point(point):
+        """Transform original (x, y, z) coordinates into visualization coordinates."""
+        x, y, z = point
+        return [z, x, y]
+
     def calculate_data_bounds(self):
+        """Compute global min/max ranges and center for all animation frames."""
         if not self.frames_data:
             return None
 
@@ -699,70 +767,88 @@ class AnimationPlayer(Page):
         return bounds
 
     def update_ui_after_loading(self):
+        """Update frame slider range and window title according to loaded data."""
         self.frame_slider.setRange(0, self.num_frames - 1)
         self.frame_label.setText(f"Frame {self.current_frame + 1}/{self.num_frames}")
         self.setWindowTitle(f"BinaryPlayer - {self.num_frames} frames, {self.num_nodes} nodes")
 
-    def setup_vtk_after_loading(self):
+    def setup_gl_after_loading(self):
+        """Create scatter, skeleton lines, grid and trajectories after data is loaded."""
         self.clear_scene()
-        self.renderer.SetBackground(1, 1, 1)
-        valid_connections = [(start, end) for start, end in self.connections
-                             if start < self.num_nodes and end < self.num_nodes]
+        if not self.frames_data:
+            return
 
-        for i in range(self.num_nodes):
-            sphere_source = vtk.vtkSphereSource()
-            sphere_source.SetRadius(self.sphere_radius)
-            sphere_source.SetPhiResolution(8)
-            sphere_source.SetThetaResolution(8)
+        max_range = max(self.data_bounds['range']) if self.data_bounds else 1.0
+        point_size = 10.0
 
-            mapper = vtk.vtkPolyDataMapper()
-            mapper.SetInputConnection(0, sphere_source.GetOutputPort(0))
+        colors = []
+        for node_idx in range(self.num_nodes):
+            r, g, b = self.hsv_to_rgb(node_idx / max(1, self.num_nodes - 1), 0.8, 1.0)
+            colors.append((r, g, b, 1.0))
+        colors = np.array(colors, dtype=float)
 
-            actor = vtk.vtkActor()
-            actor.SetMapper(mapper)
+        center = np.array(self.data_bounds['center'], dtype=float) if self.data_bounds else np.zeros(3, dtype=float)
+        if self.frames_data and self.frames_data[0]:
+            init_pos = np.array(self.frames_data[0], dtype=np.float32) - center.astype(np.float32)
+        else:
+            init_pos = np.zeros((self.num_nodes, 3), dtype=np.float32)
 
-            hue = i / max(1, self.num_nodes - 1)
-            actor.GetProperty().SetColor(*self.hsv_to_rgb(hue, 0.8, 1.0))
+        self.scatter_item = gl.GLScatterPlotItem(
+            pos=init_pos,
+            size=point_size,
+            color=colors.astype(np.float32),
+            pxMode=True  # 像素模式，保证点大小恒定、可见
+        )
+        self.scatter_item.setGLOptions('opaque')
+        self.view.addItem(self.scatter_item)
 
-            self.renderer.AddActor(actor)
-            self.sphere_actors.append(actor)
-            self.sphere_sources.append(sphere_source)
+        # 初始化骨骼线段
+        valid_connections = [
+            (start, end) for start, end in self.connections
+            if start < self.num_nodes and end < self.num_nodes
+        ]
+        self.line_items = []
+        for _ in valid_connections:
+            line = gl.GLLinePlotItem(
+                pos=np.zeros((2, 3), dtype=float),
+                color=(0, 0, 0, 1),
+                width=2,
+                antialias=True
+            )
+            self.view.addItem(line)
+            self.line_items.append(line)
 
-        for start_idx, end_idx in valid_connections:
-            line_source = vtk.vtkLineSource()
-
-            mapper = vtk.vtkPolyDataMapper()
-            mapper.SetInputConnection(0, line_source.GetOutputPort(0))
-
-            actor = vtk.vtkActor()
-            actor.SetMapper(mapper)
-            actor.GetProperty().SetColor(0, 0,
-                                         0)
-            actor.GetProperty().SetLineWidth(2)
-
-            self.renderer.AddActor(actor)
-            self.line_actors.append((actor, line_source, start_idx, end_idx))
         self.setup_trajectories()
+        grid_size = max_range
+        if grid_size <= 0:
+            grid_size = 10.0
+        self.grid_item = gl.GLGridItem()
+        self.grid_item.setSize(grid_size, grid_size)
+        self.grid_item.setSpacing(grid_size / 10.0, grid_size / 10.0)
+        self.grid_item.setColor((0.2, 0.2, 0.2, 1.0))
+        self.grid_item.translate(0, 0, -grid_size * 0.1)
+        self.view.addItem(self.grid_item)
+
         self.setup_camera()
 
     def clear_scene(self):
+        """Remove all plotted items from the 3D view and stop playback if running."""
         if self.is_playing:
             self.timer.stop()
             self.is_playing = False
             self.play_button.setText("Play")
-        for actor in self.sphere_actors:
-            self.renderer.RemoveActor(actor)
-        self.sphere_actors = []
-        self.sphere_sources = []
-        for actor_data in self.line_actors:
-            actor, _, _, _ = actor_data
-            self.renderer.RemoveActor(actor)
-        self.line_actors = []
-        for actor in self.trajectory_actors:
-            self.renderer.RemoveActor(actor)
-        self.trajectory_actors = []
+        if self.scatter_item is not None:
+            self.view.removeItem(self.scatter_item)
+            self.scatter_item = None
+        for item in self.line_items:
+            self.view.removeItem(item)
+        self.line_items = []
+        for item in self.trajectory_items:
+            self.view.removeItem(item)
+        self.trajectory_items = []
 
     def setup_ui(self):
+        """Construct menus, toolbar actions and playback controls for the animation player."""
         self.setWindowTitle("BinaryPlayer")
         self.resize(800, 600)
 
@@ -780,13 +866,35 @@ class AnimationPlayer(Page):
         self.action_open.setText("Open")
         self.action_csv.setText("csv")
         self.action_bin.setText("bin/bytes")
-        self.menuFile.setTitle("File")
-        self.menuSave_as.setTitle("Export")
-        self.menuSetting.setTitle("Setting")
-        self.menuHelp.setTitle("Help")
 
-        self.layout.addWidget(self.plotter, 1)
+        # 菜单与设置项使用多语言资源
+        self.menuFile.setTitle(i18n.tr("menu.file"))
+        self.menuSave_as.setTitle(i18n.tr("menu.export"))
+        self.menuSetting.setTitle(i18n.tr("menu.setting"))
+        self.menuHelp.setTitle(i18n.tr("menu.help"))
+
+        # add shared About action under Help menu
+        self.actionHelpAbout = QAction(self)
+        self.actionHelpAbout.setObjectName("actionHelpAbout")
+        self.actionHelpAbout.setText("About")
+        self.menuHelp.addAction(self.actionHelpAbout)
+        self.actionHelpAbout.triggered.connect(self.show_help_dialog)
+
+        # add shared Settings action
+        self.actionSettings = QAction(self)
+        self.actionSettings.setObjectName("actionSettings")
+        self.actionSettings.setText("Settings...")
+        self.menuSetting.addAction(self.actionSettings)
+        self.actionSettings.triggered.connect(self.show_settings_dialog)
+
+        self.layout.addWidget(self.view_frame, 1)
         self.control_layout.setSpacing(5)
+
+        self.play_button.setText(i18n.tr("anim.button.play"))
+        self.prev_button.setText(i18n.tr("anim.button.prev"))
+        self.next_button.setText(i18n.tr("anim.button.next"))
+        self.reset_camera_button.setText(i18n.tr("anim.button.reset_camera"))
+        self.trajectory_checkbox.setText(i18n.tr("anim.checkbox.show_orbit"))
 
         self.play_button.clicked.connect(self.toggle_play)
         self.control_layout.addWidget(self.play_button)
@@ -799,37 +907,17 @@ class AnimationPlayer(Page):
         self.trajectory_checkbox.stateChanged.connect(self.toggle_trajectories)
         self.control_layout.addWidget(self.trajectory_checkbox)
 
-        frame_label = QLabel("Frame:")
+        frame_label = QLabel(i18n.tr("anim.label.frame_prefix"))
         self.control_layout.addWidget(frame_label)
         self.frame_slider.setRange(0, 0)
         self.frame_slider.valueChanged.connect(self.slider_changed)
         self.control_layout.addWidget(self.frame_slider)
         self.control_layout.addWidget(self.frame_label)
         self.layout.addLayout(self.control_layout)
-        self.renderer.SetBackground(1, 1, 1)
-
-    def setup_vtk(self):
-        self.renderer.SetBackground(1, 1, 1)
-        self.plotter.GetRenderWindow().AddRenderer(self.renderer)
-        for i in range(self.num_nodes):
-            sphere_source = vtk.vtkSphereSource()
-            sphere_source.SetRadius(self.sphere_radius)
-            sphere_source.SetPhiResolution(8)
-            sphere_source.SetThetaResolution(8)
-            mapper = vtk.vtkPolyDataMapper()
-            mapper.SetInputConnection(0, sphere_source.GetOutputPort(0))
-            actor = vtk.vtkActor()
-            actor.SetMapper(mapper)
-            hue = i / max(1, self.num_nodes - 1)
-            actor.GetProperty().SetColor(*self.hsv_to_rgb(hue, 0.8, 1.0))
-            self.renderer.AddActor(actor)
-            self.sphere_actors.append(actor)
-            self.sphere_sources.append(sphere_source)
-        self.setup_skeleton_lines()
-        self.setup_camera()
-        self.setup_trajectories()
+        self.view.setBackgroundColor('w')
 
     def calculate_sphere_radius(self):
+        """Estimate a suitable sphere radius based on overall data extents."""
         if not self.data_bounds:
             return 0.1
 
@@ -837,137 +925,113 @@ class AnimationPlayer(Page):
         radius = max_range * 0.005
         return max(0.01, radius)
 
-    def setup_skeleton_lines(self):
-        for start_idx, end_idx in self.connections:
-            line_source = vtk.vtkLineSource()
-
-            mapper = vtk.vtkPolyDataMapper()
-            mapper.SetInputConnection(0, line_source.GetOutputPort(0))
-
-            actor = vtk.vtkActor()
-            actor.SetMapper(mapper)
-            actor.GetProperty().SetColor(0, 0,
-                                         0)
-            actor.GetProperty().SetLineWidth(2)
-
-            self.renderer.AddActor(actor)
-            self.line_actors.append((actor, line_source, start_idx, end_idx))
-
     def setup_trajectories(self):
+        """Precompute and add trajectory line items for each node in the animation."""
+        self.trajectory_items = []
+        if not self.frames_data:
+            return
         for node_idx in range(self.num_nodes):
-            points = vtk.vtkPoints()
-            for frame_idx in range(self.num_frames):
-                x, y, z = self.frames_data[frame_idx][node_idx]
-                points.InsertNextPoint(x, y, z)
-            poly_line = vtk.vtkPolyLine()
-            poly_line.GetPointIds().SetNumberOfIds(self.num_frames)
-            for i in range(self.num_frames):
-                poly_line.GetPointIds().SetId(i, i)
-            cells = vtk.vtkCellArray()
-            cells.InsertNextCell(poly_line)
-            poly_data = vtk.vtkPolyData()
-            poly_data.SetPoints(points)
-            poly_data.SetLines(cells)
-            mapper = vtk.vtkPolyDataMapper()
-            mapper.SetInputData(poly_data)
-            actor = vtk.vtkActor()
-            actor.SetMapper(mapper)
-            actor.GetProperty().SetColor(*self.hsv_to_rgb(node_idx / max(1, self.num_nodes - 1), 0.8, 0.6))
-            actor.GetProperty().SetLineWidth(1)
-            actor.SetVisibility(False)
-            self.renderer.AddActor(actor)
-            self.trajectory_actors.append(actor)
+            raw_points = np.array(
+                [self.frames_data[frame_idx][node_idx] for frame_idx in range(self.num_frames)],
+                dtype=float
+            )
+            center = np.array(self.data_bounds['center'], dtype=float) if self.data_bounds else np.zeros(3, dtype=float)
+            points = raw_points - center
+            color = self.hsv_to_rgb(node_idx / max(1, self.num_nodes - 1), 0.8, 0.6) + (1.0,)
+            line = gl.GLLinePlotItem(pos=points, color=color, width=1, antialias=True)
+            line.setVisible(False)
+            self.view.addItem(line)
+            self.trajectory_items.append(line)
 
     def setup_camera(self):
+        """Configure the camera position so the animated character fits nicely in view."""
         if not self.data_bounds:
             return
-
-        center = self.data_bounds['center']
+        center = (0.0, 0.0, 0.0)
         max_range = max(self.data_bounds['range'])
-
-        camera = self.renderer.GetActiveCamera()
-        camera.SetFocalPoint(center[0], center[1], center[2])
-        camera.SetPosition(
-            center[0],
-            center[1],
-            center[2] + max_range * 1.5
+        base_distance = max_range * 2.0 if max_range > 0 else 10
+        distance = base_distance * 0.7
+        self.view.opts['center'] = pg.Vector(*center)
+        self.view.setCameraPosition(
+            distance=distance,
+            elevation=0, 
+            azimuth=0   
         )
-        camera.SetViewUp(0, 1, 0)
-        self.renderer.ResetCameraClippingRange()
 
     def reset_camera(self):
-        """Reset the camera to the initial setup position"""
+        """Reset the camera to its default position and refresh the view."""
         self.setup_camera()
-        self.plotter.GetRenderWindow().Render()
+        self.view.update()
 
     def setup_animation(self):
+        """Connect timer updates to frame stepping and initialize playback state."""
         self.timer.timeout.connect(self.next_frame)
         self.timer.setInterval(50)  # 20 FPS
         self.update_frame_display()
 
     def update_frame_display(self):
+        """Update scatter, skeleton lines and UI to reflect the current frame index."""
         if self.current_frame >= len(self.frames_data):
             return
         frame_points = self.frames_data[self.current_frame]
+        center = np.array(self.data_bounds['center'], dtype=np.float32) if self.data_bounds else np.zeros(3, dtype=np.float32)
 
-        for node_idx, (x, y, z) in enumerate(frame_points):
-            if node_idx < len(self.sphere_actors):
-                scaled_x = x * self.scale_factor
-                scaled_y = y * self.scale_factor
-                scaled_z = z * self.scale_factor
-                self.sphere_actors[node_idx].SetPosition(scaled_x, scaled_y, scaled_z)
+        if self.scatter_item is not None:
+            scaled = (np.array(frame_points, dtype=np.float32) - center) * np.float32(self.scale_factor)
+            self.scatter_item.setData(pos=scaled)
 
-        for actor, line_source, start_idx, end_idx in self.line_actors:
-            if start_idx < len(frame_points) and end_idx < len(frame_points):
-                start_point = frame_points[start_idx]
-                end_point = frame_points[end_idx]
-
-                scaled_start_x = start_point[0] * self.scale_factor
-                scaled_start_y = start_point[1] * self.scale_factor
-                scaled_start_z = start_point[2] * self.scale_factor
-
-                scaled_end_x = end_point[0] * self.scale_factor
-                scaled_end_y = end_point[1] * self.scale_factor
-                scaled_end_z = end_point[2] * self.scale_factor
-
-                line_source.SetPoint1(scaled_start_x, scaled_start_y, scaled_start_z)
-                line_source.SetPoint2(scaled_end_x, scaled_end_y, scaled_end_z)
+        if self.line_items:
+            valid_connections = [
+                (start, end) for start, end in self.connections
+                if start < len(frame_points) and end < len(frame_points)
+            ]
+            for line_item, (start_idx, end_idx) in zip(self.line_items, valid_connections):
+                start_point = (np.array(frame_points[start_idx], dtype=float) - center) * self.scale_factor
+                end_point = (np.array(frame_points[end_idx], dtype=float) - center) * self.scale_factor
+                pos = np.vstack([start_point, end_point])
+                line_item.setData(pos=pos)
 
         self.frame_slider.setValue(self.current_frame)
         self.frame_label.setText(f"Frame {self.current_frame + 1}/{self.num_frames}")
 
-        self.plotter.GetRenderWindow().Render()
+        self.view.update()
 
     def toggle_play(self):
+        """Toggle between playing and paused states for the animation."""
         if self.is_playing:
             self.timer.stop()
-            self.play_button.setText("Play")
+            self.play_button.setText(i18n.tr("anim.button.play"))
         else:
             self.timer.start()
-            self.play_button.setText("Stop")
+            self.play_button.setText(i18n.tr("anim.button.stop"))
         self.is_playing = not self.is_playing
 
     def next_frame(self):
+        """Advance the animation to the next frame and update the display."""
         self.current_frame = (self.current_frame + 1) % self.num_frames
         self.update_frame_display()
 
     def previous_frame(self):
+        """Move the animation to the previous frame and update the display."""
         self.current_frame = (self.current_frame - 1) % self.num_frames
         self.update_frame_display()
 
     def slider_changed(self, value):
+        """Jump to a frame when the slider is moved to a different position."""
         if value != self.current_frame:
             self.current_frame = value
             self.update_frame_display()
 
     def toggle_trajectories(self, state):
+        """Show or hide trajectory lines based on the checkbox state."""
         self.show_trajectories = (state == Qt.CheckState.Checked.value)
-        for actor in self.trajectory_actors:
-            actor.SetVisibility(self.show_trajectories)
-        self.plotter.GetRenderWindow().Render()
+        for item in self.trajectory_items:
+            item.setVisible(self.show_trajectories)
+        self.view.update()
 
     @staticmethod
     def hsv_to_rgb(h, s, v):
+        """Convert HSV color values to an RGB tuple."""
         if s == 0.0:
             return v, v, v
         i = int(h * 6.0)
@@ -979,40 +1043,29 @@ class AnimationPlayer(Page):
         return color[i % 6]
 
     def closeEvent(self, event):
+        """Stop playback and delegate to the base close event handler."""
         try:
-            if hasattr(self, 'plotter') and self.plotter:
-                if self.is_playing:
-                    self.timer.stop()
-                    self.play_button.setText("Play")
-                self.plotter.close()
-                self.plotter.deleteLater()
-                self.plotter = None
+            if self.is_playing:
+                self.timer.stop()
+                self.play_button.setText("Play")
             super().closeEvent(event)
         except Exception as e:
             ErrorDialog(self, e)
 
     def showEvent(self, event):
+        """Ensure the 3D view updates correctly when the window becomes visible."""
         try:
             super().showEvent(event)
-            if not hasattr(self, 'plotter') or self.plotter is None:
-                self.plotter = QtInteractor(auto_update=True)
-                self.renderer = vtk.vtkRenderer()
-                self.plotter.GetRenderWindow().AddRenderer(self.renderer)
-                self.load_bin_file(self.content)
-                self.layout.insertWidget(0, self.plotter)
-            self.plotter.Initialize()
-            self.plotter.Start()
-            self.plotter.render()
+            self.view.update()
         except Exception as e:
             ErrorDialog(self, e)
 
     def hideEvent(self, event):
+        """Stop playback when the window is hidden and delegate to the base handler."""
         try:
-            if hasattr(self, 'plotter') and self.plotter:
-                if self.is_playing:
-                    self.timer.stop()
-                    self.play_button.setText("Play")
-                self.plotter.hide()
+            if self.is_playing:
+                self.timer.stop()
+                self.play_button.setText("Play")
             super().hideEvent(event)
         except Exception as e:
             ErrorDialog(self, e)

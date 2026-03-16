@@ -63,98 +63,195 @@ class XmlReader:
         return node_list, capsules, triangles
 
     @staticmethod
-    def generate_capsule_mesh(p1, p2, radius, segments=32, rings=12):
-        v, fig = [], []
+    def generate_capsule_mesh(p1, p2, radius, segments=16, rings=6):
+        """
+        根据两端点 p1、p2 以及半径生成一段胶囊（圆柱 + 两端球冠）。
+        返回值：
+            v   : 顶点列表，元素为 (x, y, z)
+            fig : 三角面列表，元素为 (i, j, k) —— 已经是 1-based 索引
+        """
+        v: list[tuple[float, float, float]] = []
+        fig: list[tuple[int, int, int]] = []
+
         ax, ay, az = p1
         bx, by, bz = p2
         dx, dy, dz = bx - ax, by - ay, bz - az
-        line = math.sqrt(dx*dx + dy*dy + dz*dz)
-        if line < 1e-8: return [], []
+        line = math.sqrt(dx * dx + dy * dy + dz * dz)
+        if line < 1e-8:
+            return [], []
 
-        nx, ny, nz = dx/line, dy/line, dz/line
+        # 主轴方向 n（从 p1 指向 p2）
+        nx, ny, nz = dx / line, dy / line, dz / line
 
-        # 构造局部坐标系
-        if abs(nz) > 0.99:
-            ux, uy, uz = 1, 0, 0
+        # 构造局部正交基 (t, b, n)，其中 t、b 与 n 正交
+        if abs(nx) < 0.9:
+            rx, ry, rz = 1.0, 0.0, 0.0
         else:
-            ux, uy, uz = 0, 0, 1
-        tx = ny*uz - nz*uy
-        ty = nz*ux - nx*uz
-        tz = nx*uy - ny*ux
-        t_length = math.sqrt(tx*tx + ty*ty + tz*tz)
-        if t_length > 1e-8:
-            tx /= t_length
-            ty /= t_length
-            tz /= t_length
-        ux = ny*tz - nz*ty
-        uy = nz*tx - nx*tz
-        uz = nx*ty - ny*tx
+            rx, ry, rz = 0.0, 1.0, 0.0
 
-        base = len(v)
-        step = 2 * math.pi / segments
+        # t = normalize(r × n)
+        tx = ry * nz - rz * ny
+        ty = rz * nx - rx * nz
+        tz = rx * ny - ry * nx
+        t_len = math.sqrt(tx * tx + ty * ty + tz * tz)
+        if t_len < 1e-8:
+            return [], []
+        tx /= t_len
+        ty /= t_len
+        tz /= t_len
 
-        # 圆柱侧面
+        # b = n × t
+        bx_, by_, bz_ = ny * tz - nz * ty, nz * tx - nx * tz, nx * ty - ny * tx
+
+        def to_world(px, py, pz):
+            """将局部坐标 (px, py, pz) 映射到世界坐标。"""
+            return (
+                ax + px * tx + py * bx_ + pz * nx,
+                ay + px * ty + py * by_ + pz * ny,
+                az + px * tz + py * bz_ + pz * nz,
+            )
+
+        # ----------------------
+        # 1. 圆柱侧面
+        # ----------------------
+        base_cylinder = len(v)
+        step_angle = 2 * math.pi / segments
+
         for i in range(segments):
-            c, s = math.cos(i*step), math.sin(i*step)
-            ox = (tx * c + ux * s) * radius
-            oy = (ty * c + uy * s) * radius
-            oz = (tz * c + uz * s) * radius
-            v.append((ax + ox, ay + oy, az + oz))
-            v.append((bx + ox, by + oy, bz + oz))
+            ang = i * step_angle
+            c, s = math.cos(ang), math.sin(ang)
+            # 底圆（局部 z = 0）
+            x0, y0, z0 = radius * c, radius * s, 0.0
+            # 顶圆（局部 z = line）
+            x1, y1, z1 = radius * c, radius * s, line
+            v.append(to_world(x0, y0, z0))
+            v.append(to_world(x1, y1, z1))
 
         for i in range(segments):
-            a = base + i*2
-            b = base + (i*2 + 2) % (segments*2)
-            c = base + (i*2 + 3) % (segments*2)
-            d = base + i*2 + 1
+            a = base_cylinder + i * 2
+            b = base_cylinder + ((i * 2 + 2) % (segments * 2))
+            c = base_cylinder + ((i * 2 + 3) % (segments * 2))
+            d = base_cylinder + i * 2 + 1
+            # OBJ 索引 1-based
             fig.append((a + 1, b + 1, c + 1))
             fig.append((a + 1, c + 1, d + 1))
 
-        # 底部半球
-        v.append(p1)
-        center1 = len(v)
-        for ring in range(1, rings+1):
-            theta = math.pi * ring / (2*rings)
-            z = -math.cos(theta)
-            r = math.sin(theta)
+        # ----------------------
+        # 2. 底部球冠（中心在 p1）
+        # ----------------------
+        base_bottom = len(v)
+        # 生成 rings-1 个纬圈（不包含极点），再手动加入南极点
+        for ring in range(1, rings):
+            phi = 0.5 * math.pi * ring / rings  # 0 -> pi/2
+            sin_phi = math.sin(phi)
+            cos_phi = math.cos(phi)
             for i in range(segments):
-                c, s = math.cos(i*step), math.sin(i*step)
-                vx = (tx * c + ux * s) * r - nx * z
-                vy = (ty * c + uy * s) * r - ny * z
-                vz = (tz * c + uz * s) * r - nz * z
-                v.append((ax + vx*radius, ay + vy*radius, az + vz*radius))
-        ring_start = center1 + 1
-        for i in range(segments):
-            a = ring_start + (rings-1)*segments + i
-            b = ring_start + (rings-1)*segments + (i+1) % segments
-            c = base + i*2 + 1
-            d = base + (i+1) % segments*2 + 1
-            fig.append((center1, a + 1, b + 1))
-            fig.append((a + 1, c, d))
-            fig.append((a + 1, d, b + 1))
+                ang = i * step_angle
+                c, s = math.cos(ang), math.sin(ang)
+                # 底部半球：局部 z 从 0 -> -radius
+                px = radius * sin_phi * c
+                py = radius * sin_phi * s
+                pz = -radius * cos_phi
+                v.append(to_world(px, py, pz))
 
-        # 顶部半球（类似）
-        v.append(p2)
-        center2 = len(v)
-        for ring in range(1, rings+1):
-            theta = math.pi * ring / (2*rings)
-            z = math.cos(theta)
-            r = math.sin(theta)
+        south_pole_index = len(v)
+        v.append(to_world(0.0, 0.0, -radius))
+
+        # 球冠与圆柱之间的接缝：连接最上面一圈到底部圆柱
+        if rings > 0:
+            ring_top_start = base_bottom + (rings - 2) * segments if rings > 1 else base_bottom
             for i in range(segments):
-                c, s = math.cos(i*step), math.sin(i*step)
-                vx = (tx * c + ux * s) * r + nx * z
-                vy = (ty * c + uy * s) * r + ny * z
-                vz = (tz * c + uz * s) * r + nz * z
-                v.append((bx + vx*radius, by + vy*radius, bz + vz*radius))
-        ring_start = center2 + 1
-        for i in range(segments):
-            a = ring_start + (rings-1)*segments + i
-            b = ring_start + (rings-1)*segments + (i+1) % segments
-            c = base + i*2 + 2
-            d = base + (i+1) % segments*2 + 2
-            fig.append((center2, b + 1, a + 1))
-            fig.append((a + 1, d, c))
-            fig.append((a + 1, c, b + 1))
+                next_i = (i + 1) % segments
+                v1 = ring_top_start + i
+                v2 = ring_top_start + next_i
+                c0 = base_cylinder + i * 2  # 对应底部圆柱顶点（z=0）
+                c1 = base_cylinder + next_i * 2
+                fig.append((c0 + 1, v1 + 1, v2 + 1))
+                fig.append((c0 + 1, v2 + 1, c1 + 1))
+
+        # 球冠内部三角面（纬圈之间 + 连接南极）
+        for ring in range(rings - 2):
+            ring_start = base_bottom + ring * segments
+            next_start = ring_start + segments
+            for i in range(segments):
+                next_i = (i + 1) % segments
+                a = ring_start + i
+                b = ring_start + next_i
+                c_idx = next_start + i
+                d_idx = next_start + next_i
+                fig.append((a + 1, c_idx + 1, b + 1))
+                fig.append((b + 1, c_idx + 1, d_idx + 1))
+
+        # 最下面一圈连南极
+        if rings > 1:
+            last_ring_start = base_bottom
+            for ring in range(rings - 2):
+                last_ring_start += segments
+            for i in range(segments):
+                next_i = (i + 1) % segments
+                a = last_ring_start + i
+                b = last_ring_start + next_i
+                fig.append((south_pole_index + 1, b + 1, a + 1))
+
+        # ----------------------
+        # 3. 顶部球冠（中心在 p2）
+        # ----------------------
+        # 为了复用 to_world，把局部 z 平移到 line + 局部 z
+        def to_world_top(px, py, pz):
+            return to_world(px, py, line + pz)
+
+        base_top = len(v)
+        for ring in range(1, rings):
+            phi = 0.5 * math.pi * ring / rings  # 0 -> pi/2
+            sin_phi = math.sin(phi)
+            cos_phi = math.cos(phi)
+            for i in range(segments):
+                ang = i * step_angle
+                c, s = math.cos(ang), math.sin(ang)
+                # 顶部半球：局部 z 从 0 -> +radius
+                px = radius * sin_phi * c
+                py = radius * sin_phi * s
+                pz = radius * cos_phi
+                v.append(to_world_top(px, py, pz))
+
+        north_pole_index = len(v)
+        v.append(to_world_top(0.0, 0.0, radius))
+
+        # 顶部球冠与圆柱接缝
+        if rings > 0:
+            ring_top_start = base_top + (rings - 2) * segments if rings > 1 else base_top
+            for i in range(segments):
+                next_i = (i + 1) % segments
+                v1 = ring_top_start + i
+                v2 = ring_top_start + next_i
+                c0 = base_cylinder + i * 2 + 1  # 顶部圆柱顶点（z=line）
+                c1 = base_cylinder + next_i * 2 + 1
+                fig.append((c0 + 1, v2 + 1, v1 + 1))
+                fig.append((c0 + 1, c1 + 1, v2 + 1))
+
+        # 顶部球冠内部三角面
+        for ring in range(rings - 2):
+            ring_start = base_top + ring * segments
+            next_start = ring_start + segments
+            for i in range(segments):
+                next_i = (i + 1) % segments
+                a = ring_start + i
+                b = ring_start + next_i
+                c_idx = next_start + i
+                d_idx = next_start + next_i
+                fig.append((a + 1, b + 1, c_idx + 1))
+                fig.append((b + 1, d_idx + 1, c_idx + 1))
+
+        # 顶部最后一圈连北极
+        if rings > 1:
+            last_ring_start = base_top
+            for ring in range(rings - 2):
+                last_ring_start += segments
+            for i in range(segments):
+                next_i = (i + 1) % segments
+                a = last_ring_start + i
+                b = last_ring_start + next_i
+                fig.append((north_pole_index + 1, a + 1, b + 1))
 
         return v, fig
 
