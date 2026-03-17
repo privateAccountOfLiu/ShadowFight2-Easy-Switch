@@ -9,6 +9,7 @@ import pyqtgraph as pg
 import pyqtgraph.opengl as gl
 
 from python.core.core_classes import MoveBin
+from python.ui.additional_widgets import AxisHUDWidget
 from python.ui.notice_dialog_widgets import ErrorDialog, HelpDialog
 from python.ui.settings_dialog import SettingsDialog
 from python.util import i18n
@@ -652,6 +653,8 @@ class AnimationPlayer(Page):
         self.num_nodes = 0
         self.num_frames = 0
         self.frames_data = []
+        # 视图平移偏移量：仅在 X/Z 方向居中，Y 保持与源动画一致
+        self.view_offset = np.zeros(3, dtype=float)
         self.move_bin = MoveBin.build_binary(self.content)
 
         self.central_widget = QWidget()
@@ -672,9 +675,25 @@ class AnimationPlayer(Page):
         self.view_frame_layout.setContentsMargins(4, 4, 4, 4)
 
         self.view = gl.GLViewWidget(self.view_frame)
+        self.view.setObjectName("animationGLView")
         self.view.setBackgroundColor((245, 246, 248))
         self.view.opts['distance'] = 10
         self.view_frame_layout.addWidget(self.view)
+
+        # HUD 坐标轴需要与二进制动画中逻辑坐标系保持一致。
+        # 动画数据在 _transform_point 中做了 (x, y, z) -> (z, x, y) 的变换，
+        # 即 GL 坐标系中：X'⇐原 Z，Y'⇐原 X，Z'⇐原 Y。
+        # 下面的映射让 HUD 上的 X/Y/Z 标签对应“原始数据”的坐标轴方向。
+        # HUD 中 X/Y 轴与当前视觉效果对齐：
+        # - 让 X 轴对应你感知中的“左右”方向
+        # - 让 Y 轴对应你感知中的“上下”方向
+        axis_mapping = {
+            "X": (0.0, 0.0, 1.0),
+            "Y": (0.0, -1.0, 0.0),
+            "Z": (1.0, 0.0, 0.0),
+        }
+        self._axis_hud = AxisHUDWidget(self.view, self.view, axis_mapping=axis_mapping)
+        self._axis_hud.show()
         self.timer = QTimer()
         self.play_button = QPushButton()
         self.prev_button = QPushButton()
@@ -701,6 +720,7 @@ class AnimationPlayer(Page):
         self.scatter_item = None
         self.line_items = []
         self.trajectory_items = []
+        self._gl_pending = False
 
         self.connections = [
             (13, 15), (12, 14), (14, 30), (29, 30), (29, 32), (30, 32), (14, 16), (14, 32), (14, 29), (15, 31),
@@ -729,11 +749,20 @@ class AnimationPlayer(Page):
             ]
 
             self.data_bounds = self.calculate_data_bounds()
+            # 计算视图平移偏移：只在 X/Z 方向居中，Y 轴保持原始高度（Y=0 即为动画的地面）
+            if self.data_bounds:
+                cx, cy, cz = self.data_bounds['center']
+                self.view_offset = np.array([cx, 0.0, cz], dtype=float)
+            else:
+                self.view_offset = np.zeros(3, dtype=float)
             self.sphere_radius = self.calculate_sphere_radius()
             self.update_ui_after_loading()
-            self.setup_gl_after_loading()
             self.current_frame = 0
-            self.update_frame_display()
+            if self.isVisible():
+                self.setup_gl_after_loading()
+                self.update_frame_display()
+            else:
+                self._gl_pending = True
         except Exception as e:
             ErrorDialog(self, e)
 
@@ -787,9 +816,8 @@ class AnimationPlayer(Page):
             colors.append((r, g, b, 1.0))
         colors = np.array(colors, dtype=float)
 
-        center = np.array(self.data_bounds['center'], dtype=float) if self.data_bounds else np.zeros(3, dtype=float)
         if self.frames_data and self.frames_data[0]:
-            init_pos = np.array(self.frames_data[0], dtype=np.float32) - center.astype(np.float32)
+            init_pos = np.array(self.frames_data[0], dtype=np.float32) - self.view_offset.astype(np.float32)
         else:
             init_pos = np.zeros((self.num_nodes, 3), dtype=np.float32)
 
@@ -819,14 +847,30 @@ class AnimationPlayer(Page):
             self.line_items.append(line)
 
         self.setup_trajectories()
-        grid_size = max_range
-        if grid_size <= 0:
-            grid_size = 10.0
-        self.grid_item = gl.GLGridItem()
+
+        # 根据动画数据范围动态创建“近似无限”的网格
+        self.grid_item = gl.GLGridItem(glOptions="opaque")
+        self.grid_item.setColor((0, 0, 0, 255))
+
+        if self.data_bounds:
+            rng_x, rng_y, rng_z = self.data_bounds['range']
+            max_range = max(rng_x, rng_y, rng_z)
+        else:
+            max_range = 1.0
+
+        if max_range <= 0:
+            max_range = 1.0
+
+        # 网格尺寸设置为范围的多倍，保证视觉上“看不到边界”，同时相对物体略微缩减
+        grid_size = max_range * 4.0
+        # 只需要 12x12 个格子即可，格子大小由整体尺寸自动决定
+        cell_size = max(grid_size / 12.0, 0.05)
+
         self.grid_item.setSize(grid_size, grid_size)
-        self.grid_item.setSpacing(grid_size / 10.0, grid_size / 10.0)
-        self.grid_item.setColor((0.2, 0.2, 0.2, 1.0))
-        self.grid_item.translate(0, 0, -grid_size * 0.1)
+        self.grid_item.setSpacing(cell_size, cell_size)
+
+        # 网格原点固定在 (0, 0, 0)，Y=0 即为动画坐标系的 Y=0
+        self.grid_item.translate(0.0, 0.0, 0.0)
         self.view.addItem(self.grid_item)
 
         self.setup_camera()
@@ -846,6 +890,9 @@ class AnimationPlayer(Page):
         for item in self.trajectory_items:
             self.view.removeItem(item)
         self.trajectory_items = []
+        if getattr(self, "grid_item", None) is not None:
+            self.view.removeItem(self.grid_item)
+            self.grid_item = None
 
     def setup_ui(self):
         """Construct menus, toolbar actions and playback controls for the animation player."""
@@ -935,8 +982,7 @@ class AnimationPlayer(Page):
                 [self.frames_data[frame_idx][node_idx] for frame_idx in range(self.num_frames)],
                 dtype=float
             )
-            center = np.array(self.data_bounds['center'], dtype=float) if self.data_bounds else np.zeros(3, dtype=float)
-            points = raw_points - center
+            points = raw_points - self.view_offset
             color = self.hsv_to_rgb(node_idx / max(1, self.num_nodes - 1), 0.8, 0.6) + (1.0,)
             line = gl.GLLinePlotItem(pos=points, color=color, width=1, antialias=True)
             line.setVisible(False)
@@ -974,10 +1020,9 @@ class AnimationPlayer(Page):
         if self.current_frame >= len(self.frames_data):
             return
         frame_points = self.frames_data[self.current_frame]
-        center = np.array(self.data_bounds['center'], dtype=np.float32) if self.data_bounds else np.zeros(3, dtype=np.float32)
 
         if self.scatter_item is not None:
-            scaled = (np.array(frame_points, dtype=np.float32) - center) * np.float32(self.scale_factor)
+            scaled = (np.array(frame_points, dtype=np.float32) - self.view_offset.astype(np.float32)) * np.float32(self.scale_factor)
             self.scatter_item.setData(pos=scaled)
 
         if self.line_items:
@@ -986,8 +1031,8 @@ class AnimationPlayer(Page):
                 if start < len(frame_points) and end < len(frame_points)
             ]
             for line_item, (start_idx, end_idx) in zip(self.line_items, valid_connections):
-                start_point = (np.array(frame_points[start_idx], dtype=float) - center) * self.scale_factor
-                end_point = (np.array(frame_points[end_idx], dtype=float) - center) * self.scale_factor
+                start_point = (np.array(frame_points[start_idx], dtype=float) - self.view_offset) * self.scale_factor
+                end_point = (np.array(frame_points[end_idx], dtype=float) - self.view_offset) * self.scale_factor
                 pos = np.vstack([start_point, end_point])
                 line_item.setData(pos=pos)
 
@@ -1053,9 +1098,13 @@ class AnimationPlayer(Page):
             ErrorDialog(self, e)
 
     def showEvent(self, event):
-        """Ensure the 3D view updates correctly when the window becomes visible."""
+        """Build 3D scene on first show to avoid GL context conflict with other windows; refresh view."""
         try:
             super().showEvent(event)
+            if getattr(self, "_gl_pending", False) and self.frames_data:
+                self._gl_pending = False
+                self.setup_gl_after_loading()
+                self.update_frame_display()
             self.view.update()
         except Exception as e:
             ErrorDialog(self, e)
