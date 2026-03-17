@@ -1,14 +1,14 @@
 # 暗影格斗2 简易转换器（中文版）
 
 ## 摘要
-&emsp;&emsp;基于PySide6与Vtk的Python项目，可帮助您完成游戏相关文件的格式转换，为《ShadowFight2》提供更佳的游戏体验。
+&emsp;&emsp;基于PySide6与OpenGL的Python项目，可帮助您完成游戏相关文件的格式转换，为《ShadowFight2》提供更佳的游戏体验。
 
 ## 项目介绍
 ### 代码说明
 &emsp;&emsp;项目提供了发行版EXE文件和一些源代码。若您希望直接使用本项目，只需下载发行版EXE文件并运行它（注意：程序将在其所在目录中新建三个文件夹作为输出文件夹）;若您希望通过源代码运行程序，您仅需下载所有的Python代码，但需要你注意文件间的结构关系。您也可以直接克隆本项目到本地运行。在运行之前，您必须要安装依赖：
 
 ```
-pip install pyside6 vtk
+pip install pyside6 OpenGL
 ```
 
 &emsp;&emsp;基于Qt框架的GUI程序：
@@ -35,13 +35,13 @@ pip install pyside6 vtk
 ***
 # Shadow Fight 2 Easy Switch (English Version)  
 ## Abstract  
-&emsp;&emsp;A Python project based on PySide6 and Vtk that helps you convert game-related files, providing an enhanced gaming experience for *Shadow Fight 2*.  
+&emsp;&emsp;A Python project based on PySide6 and OpenGL that helps you convert game-related files, providing an enhanced gaming experience for *Shadow Fight 2*.  
 
 ## Project Introduction  
 ### Code Description  
 &emsp;&emsp;The project provides a release version of the EXE file and some source code. If you wish to use the project directly, simply download the release version of the EXE file and run it (Note: The program will create three new folders in its directory as output folders); If you wish to run the program from the source code, you only need to download all the Python code, but you must pay attention to the structural relationships between the files. You can also clone the project directly to run it locally. Before running, you must install the dependencies:  
 ```  
-pip install pyside6 vtk  
+pip install pyside6 OpenGL
 ```  
 &emsp;&emsp;A GUI program based on the Qt framework: Run the `main.py` program directly. This is the entry point for our GUI. Once the interface is open, you can use Qt controls to select the desired functionality.  
 
@@ -60,3 +60,6 @@ pip install pyside6 vtk
 
 ## Notes  
 ### This program is an open-source project and must not be used for commercial activities!
+
+
+##### 此项目将停止更新
